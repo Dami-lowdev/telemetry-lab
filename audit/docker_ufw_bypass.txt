@@ -1,0 +1,21 @@
+# Démonstration : Docker contourne UFW — 2026-10-02, depuis Kali (192.168.30.150)
+# UFW : deny incoming, seuls 22/tcp (limit) et 8080/tcp autorisés.
+# Conteneur de test : docker run -d --rm -p 9999:80 nginx:alpine
+
+## Pendant que le conteneur tourne
+$ nmap -Pn -p 9999,8080,3001 192.168.30.152
+3001/tcp filtered nessus       # bloqué par UFW (normal)
+8080/tcp closed   http-proxy   # autorisé par UFW, rien n'écoute
+9999/tcp open     abyss        # NON autorisé par UFW... et pourtant ouvert
+$ curl http://192.168.30.152:9999  ->  <title>Welcome to nginx!</title>
+
+## Après docker stop
+$ nmap -Pn -p 9999 192.168.30.152
+9999/tcp filtered abyss
+
+## Explication
+Docker insère ses propres règles NAT/FORWARD (chaînes DOCKER) dans iptables,
+traitées avant les règles INPUT d'UFW : un port publié via "ports:" est exposé
+quel que soit UFW.
+Parade retenue : ne pas publier PostgreSQL, publier Uptime Kuma sur 127.0.0.1
+uniquement (accès par tunnel SSH), ne publier que l'API (8080).
